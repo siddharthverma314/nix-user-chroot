@@ -7,3 +7,8 @@
 
 # Example nix directory
 /.nix/
+
+# Flake stuff
+.envrc
+.direnv/
+result
