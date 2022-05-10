@@ -1,5 +1,4 @@
 use nix::errno::Errno;
-use std::env;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
@@ -10,8 +9,7 @@ mod ffi {
     }
 }
 
-pub fn mkdtemp(template: &str) -> nix::Result<PathBuf> {
-    let mut tmpdir = env::temp_dir();
+pub fn mkdtemp(mut tmpdir: PathBuf, template: &str) -> nix::Result<PathBuf> {
     tmpdir.push(template);
     let mut buf = tmpdir.into_os_string().into_vec();
     buf.push(b'\0'); // make a c string

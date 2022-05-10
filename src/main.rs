@@ -1,3 +1,4 @@
+use clap::Parser;
 use nix::mount::{mount, MsFlags};
 use nix::sched::{unshare, CloneFlags};
 use nix::sys::signal::{kill, Signal};
@@ -231,22 +232,33 @@ fn wait_for_child(rootdir: &Path, child_pid: unistd::Pid) -> ! {
     process::exit(exit_status);
 }
 
+#[derive(Parser)]
+#[clap(about = "Use nix in an unshare chroot environment")]
+struct Args {
+    #[clap(long)]
+    tmpdir: Option<String>,
+    nixdir: String,
+    command: Vec<String>,
+}
+
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 3 {
-        eprintln!("Usage: {} <nixpath> <command>\n", args[0]);
-        process::exit(1);
-    }
+    let args = Args::parse();
 
-    let rootdir = mkdtemp::mkdtemp("nix-chroot.XXXXXX")
-        .unwrap_or_else(|err| panic!("failed to create temporary directory: {}", err));
-
-    let nixdir = fs::canonicalize(&args[1])
-        .unwrap_or_else(|err| panic!("failed to resolve nix directory {}: {}", &args[1], err));
+    let rootdir = mkdtemp::mkdtemp(
+        args.tmpdir.map_or_else(env::temp_dir, PathBuf::from),
+        "nix-chroot.XXXXXX",
+    )
+    .unwrap_or_else(|err| panic!("failed to create temporary directory: {}", err));
 
     match unsafe { fork() } {
         Ok(ForkResult::Parent { child, .. }) => wait_for_child(&rootdir, child),
-        Ok(ForkResult::Child) => RunChroot::new(&rootdir).run_chroot(&nixdir, &args[2], &args[3..]),
+        Ok(ForkResult::Child) => RunChroot::new(&rootdir).run_chroot(
+            &fs::canonicalize(args.nixdir).unwrap_or_else(|err| {
+                panic!("failed to resolve nix directory {}: {}", args.nixdir, err)
+            }),
+            &args.command[0],
+            &args.command[1..],
+        ),
         Err(e) => {
             eprintln!("fork failed: {}", e);
         }
